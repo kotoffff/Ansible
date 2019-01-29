@@ -6,7 +6,7 @@ Playbook for downloading  config files from servers and save it in local directo
 Requirements
 ------------
 * User must have sudo /bin/cat permissions for several tasks
-* Tested for Ansible 2.4 and higher
+* Tested for Ansible 2.4
 * Tested for SLES 11/12, CentOS 6/7, Ubuntu 14/16/17/18
 
 Vars
