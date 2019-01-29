@@ -1,0 +1,365 @@
+---
+############################################################################################################################################################
+#playbook for downloading  config files from servers and save it in local dir
+#tested for SLES 11/12, CentOS 6/7, Ubuntu 14/16/17/18
+############################################################################################################################################################
+#Note: 
+# user must have sudo /bin/cat permissions for several tasks
+# Vars:
+# download_on_demand - must be set to "True" if you want download backup archive in current directory
+#
+# download_on_schedule - must be set to "True" if you want download backup archive in directory wich you want.
+# dst_dir - must be set it to path where your backup archive should be saved. You must provide this var if download_on_schedule is set to "True"
+#
+#please use above variables with --extra-vars method:
+#http://docs.ansible.com/ansible/latest/playbooks_variables.html#passing-variables-on-the-command-line
+#Example:
+#--extra-vars "download_on_demand=True" 
+#--extra-vars "dst_dir=/tmp download_on_schedule=True"
+#############################################################################################################################################################
+- hosts: all
+  become: false
+#  remote_user: some_user
+  gather_facts: False
+  tasks:
+
+############################################
+#define/remove/create date/dir to backup   #
+############################################
+
+    - name: Get facts
+      setup:
+        gather_subset: "network"
+
+    - name: Define current date in task (YYYY-MM-DD)
+      shell: echo $(date +%Y-%m-%d)
+      register: current_date
+
+    - name: Define backup dir
+      shell: echo  "/tmp/{{current_date.stdout}}_{{ansible_hostname}}_{{ansible_default_ipv4.address}}_cfg_backup"
+      register: backup_dir   
+
+    - name: Check if backup dir exists
+      stat: 
+        path: "{{backup_dir.stdout}}"
+      register: backup_dir_stat
+
+    - name: Remove if  backup dir exists
+      file: 
+        path: "{{backup_dir.stdout}}"
+        state: absent 
+      when: backup_dir_stat.stat.isdir is defined and backup_dir_stat.stat.isdir
+
+    - name: Create backup dir
+      file: 
+        path: "{{backup_dir.stdout}}"
+        state: directory
+        mode: 0700
+ 
+
+#########################
+# backup configs part    #
+#########################
+
+#date
+    - name: date
+      shell: date > "{{backup_dir.stdout}}/date.txt"
+
+#kernel/architecture/boot/OS version/run level info
+    - name: Uname -a
+      shell: uname -a > "{{backup_dir.stdout}}/uname.txt"
+
+    - name: cat /etc/*release
+      shell: /bin/cat /etc/*release > "{{backup_dir.stdout}}/distrib_info.txt"
+
+    - name: Define /boot/grub2/grub.cfg
+      shell: sudo /bin/cat /boot/grub2/grub.cfg
+      register: grub2_checking
+      ignore_errors: yes
+
+    - name: grub2.cfg
+      shell: sudo /bin/cat /boot/grub2/grub.cfg > "{{backup_dir.stdout}}/grub2_cfg.txt"
+      when: grub2_checking.stdout != ''
+
+    - name: Define /boot/grub/grub.cfg
+      shell: sudo /bin/cat /boot/grub/grub.cfg
+      register: grub_cfg_checking
+      ignore_errors: yes
+
+    - name: grub.cfg
+      shell: sudo /bin/cat /boot/grub/grub.cfg > "{{backup_dir.stdout}}/grub_cfg.txt"
+      when: grub_cfg_checking.stdout != ''
+
+    - name: Define /boot/grub/grub.conf
+      shell: sudo /bin/cat /boot/grub/grub.conf
+      register: grub_conf_checking
+      ignore_errors: yes
+
+    - name: grub.conf
+      shell: sudo /bin/cat /boot/grub/grub.conf > "{{backup_dir.stdout}}/grub_cfg.txt"
+      when: grub_conf_checking.stdout != ''
+
+    - name: Define menu.lst
+      shell: sudo /bin/cat /boot/grub/menu.lst
+      register: menu_lst_checking
+      ignore_errors: yes
+
+    - name: menu.lst
+      shell: sudo /bin/cat /boot/grub/menu.lst > "{{backup_dir.stdout}}/grub_menu_lst.txt"
+      when: menu_lst_checking.stdout != ''
+
+    - name: runlevel systemd
+      shell: /bin/systemctl get-default > "{{backup_dir.stdout}}/run_level.txt"
+      when: ansible_service_mgr == 'systemd'
+      ignore_errors: yes  #it fails on CentOS 7.2 via not root user
+
+    - name: runlevel RHEL/SUSE
+      shell: /bin/cat /etc/inittab > "{{backup_dir.stdout}}/run_level.txt"
+      when: (ansible_os_family == 'RedHat' or ansible_os_family == 'Suse') and ansible_service_mgr != 'systemd'
+
+    - name: runlevel Debian
+      shell: /bin/cat  /etc/init/rc-sysinit.conf > "{{backup_dir.stdout}}/run_level.txt"
+      when: ansible_os_family == 'Debian' and ansible_service_mgr != 'systemd'
+
+#sysctl
+    - name: sysctl -a
+      shell: /sbin/sysctl -a > "{{backup_dir.stdout}}/sysctl.txt"    
+
+#list of installed packages
+    - name: List of installed packages (rpm)
+      shell: rpm -qa  > "{{backup_dir.stdout}}/packages_list.txt"
+      when: ansible_os_family == 'RedHat' or ansible_os_family == 'Suse'
+
+    - name: List of installed packages (dpkg)
+      shell: dpkg --list  > "{{backup_dir.stdout}}/packages_list.txt"
+      when: ansible_os_family == 'Debian'
+
+#network
+    - name: ip addr
+      shell: /sbin/ip addr > "{{backup_dir.stdout}}/ipaddr.txt"
+
+    - name: ip route
+      shell: /sbin/ip route > "{{backup_dir.stdout}}/iproute.txt"
+
+    - name: ip -s link
+      shell: /sbin/ip -s link  > "{{backup_dir.stdout}}/network_interfaces_statictic.txt"
+
+    - name: Check if /sbin/ifconfig exists
+      stat: 
+        path: /sbin/ifconfig
+      register: ifconfig_checking
+
+    - name: ifconfig
+      shell: /sbin/ifconfig -a > "{{backup_dir.stdout}}/ifconfig.txt"
+      when: ifconfig_checking.stat.exists == True
+
+    - name: cat /etc/resolv.conf
+      shell: /bin/cat /etc/resolv.conf > "{{backup_dir.stdout}}/resolv.txt"
+
+
+#hardware info
+
+    - name: cat /proc/cpuinfo
+      shell: /bin/cat /proc/cpuinfo > "{{backup_dir.stdout}}/cpuinfo.txt"
+
+    - name: free -m
+      shell: /usr/bin/free -m > "{{backup_dir.stdout}}/raminfo.txt"
+
+    - name: Check if /sbin/lspci exists
+      stat: 
+        path: /sbin/lspci
+      register: lspci_checking
+
+    - name: /sbin/lspci
+      shell: /sbin/lspci > "{{backup_dir.stdout}}/lspci.txt"
+      when: lspci_checking.stat.exists == True
+
+    - name: Check if /usr/bin/lspci exists
+      stat: 
+        path: /usr/bin/lspci
+      register: lspci_bin_checking
+
+    - name: /usr/bin/lspci
+      shell: /usr/bin/lspci > "{{backup_dir.stdout}}/lspci.txt"
+      when: lspci_bin_checking.stat.exists == True
+
+    - name: Check if /usr/bin/lshw exists
+      stat: 
+        path: /usr/bin/lshw
+      register: lshw_checking
+
+    - name: /usr/bin/lshw
+      shell: /usr/bin/lshw > "{{backup_dir.stdout}}/lshw.txt"
+      when: lshw_checking.stat.exists == True
+
+#list of autostarted services
+    - name: systemd autostart services list
+      shell: /bin/systemctl list-unit-files --type=service > "{{backup_dir.stdout}}/autostart_services.txt"
+      when: ansible_service_mgr == 'systemd'
+      ignore_errors: yes  #it fails on CentOS 7.2 via not root user
+      
+    - name: chkconfig --list
+      shell: /sbin/chkconfig --list > "{{backup_dir.stdout}}/autostart_services.txt"
+      when: (ansible_os_family == 'RedHat' or ansible_os_family == 'Suse') and ansible_service_mgr != 'systemd'
+      ignore_errors: yes  #it shows empty on SLES systems sometimes via not root user
+
+    - name: initctl show-config
+      shell: /sbin/initctl show-config  > "{{backup_dir.stdout}}/autostart_services.txt"
+      when: ansible_os_family == 'Debian' and ansible_service_mgr != 'systemd'
+
+    - name: Check if /etc/rc.local exists
+      stat: 
+        path: /etc/rc.local
+      register: rc_local_checking
+
+    - name: /etc/rc.local
+      shell: cat /etc/rc.local > "{{backup_dir.stdout}}/rc_local.txt"
+      when: rc_local_checking.stat.exists == True
+
+    - name: Check if /etc/init.d/after.local exists
+      stat: 
+        path: /etc/init.d/after.local
+      register: after_local_checking
+
+    - name: /etc/init.d/after.local
+      shell: cat /etc/init.d/after.local > "{{backup_dir.stdout}}/after_local.txt"
+      when: after_local_checking.stat.exists == True
+
+#mounts/filesystems/disks
+    - name: mount
+      shell: /bin/mount > "{{backup_dir.stdout}}/mount.txt"
+
+    - name: mount
+      shell: /bin/df -hT > "{{backup_dir.stdout}}/df.txt"
+
+    - name: Check if /bin/lsblk exists
+      stat: 
+        path: /bin/lsblk 
+      register: lsblk_checking
+
+    - name: lsblk
+      shell: /bin/lsblk  > "{{backup_dir.stdout}}/lsblk.txt"
+      when: lsblk_checking.stat.exists == True
+
+    - name: ls -l /dev/sd*
+      shell: /bin/ls -l /dev/sd*  > "{{backup_dir.stdout}}/sdout.txt"
+      ignore_errors: yes
+
+    - name: ls -l /dev/xvd* (aws hosts)
+      shell: /bin/ls -l /dev/xvd*  > "{{backup_dir.stdout}}/sdout.txt"
+      ignore_errors: yes
+
+    - name: ls -l /dev/mapper
+      shell: /bin/ls -l /dev/mapper  > "{{backup_dir.stdout}}/mapper.txt"
+
+    - name: cat /etc/fstab
+      shell: /bin/cat /etc/fstab  > "{{backup_dir.stdout}}/fstab.txt"
+
+#users/groups info
+
+    - name: cat /etc/passwd
+      shell: /bin/cat /etc/passwd  > "{{backup_dir.stdout}}/passwd.txt"
+
+    - name: cat /etc/group
+      shell: /bin/cat /etc/group  > "{{backup_dir.stdout}}/group.txt"
+
+    - name: cat /etc/sudoers
+      shell: sudo /bin/cat /etc/sudoers  > "{{backup_dir.stdout}}/sudoers.txt"
+
+#processes info
+    - name: ps ax
+      shell: /bin/ps ax  > "{{backup_dir.stdout}}/ps_ax.txt"
+
+#vmware-tools info
+    - name: Check if /usr/bin/vmware-toolbox-cmd exists
+      stat: 
+        path: /usr/bin/vmware-toolbox-cmd
+      register: vmware_toolbox_cmd_checking
+
+    - name: vmware-toolbox-cmd -v
+      shell: /usr/bin/vmware-toolbox-cmd -v > "{{backup_dir.stdout}}/vmware_tools_version.txt"
+      when: vmware_toolbox_cmd_checking.stat.exists == True
+      ignore_errors: yes #sometimes it shows empty in stdout
+
+#java version
+    - name: Check if /usr/bin/java exists
+      stat: 
+        path: /usr/bin/java
+      register: java_checking
+
+    - name: java -version
+      shell: /usr/bin/java -version > "{{backup_dir.stdout}}/java_version.txt" 2>&1
+      when: java_checking.stat.exists == True
+      ignore_errors: yes
+
+#printers information backup
+    - name: Check if /etc/cups/printers.conf exists
+      stat: 
+        path: /etc/cups/printers.conf
+      register: cups_checking
+
+    - name: /etc/cups/printers.conf
+      shell: sudo cat /etc/cups/printers.conf > "{{backup_dir.stdout}}/printers.conf.txt"
+      when: cups_checking.stat.exists == True     
+
+#iscsiadm info
+    - name: Check if /sbin/iscsiadm exists
+      stat: 
+        path: /sbin/iscsiadm
+      register: iscsiadm_checking
+
+    - name: /sbin/iscsiadm -m session -P3 
+      shell: /sbin/iscsiadm -m session -P3  > "{{backup_dir.stdout}}/iscsiadm.txt"  2>&1
+      when: iscsiadm_checking.stat.exists == True
+      ignore_errors: yes
+
+    - name: Check if /usr/sbin/iscsiadm
+      stat: 
+        path: /usr/sbin/iscsiadm
+      register: iscsiadm_checking
+
+    - name: /usr/sbin/iscsiadm -m session -P3 
+      shell: /usr/sbin/iscsiadm -m session -P3  > "{{backup_dir.stdout}}/iscsiadm.txt"  2>&1
+      when: iscsiadm_checking.stat.exists == True
+      ignore_errors: yes  
+
+#####################################
+# finish part                       #
+#####################################
+
+    - name: Create archive
+      archive: 
+        path:  "{{backup_dir.stdout}}"
+        dest: "{{backup_dir.stdout}}.tar.gz"
+
+    - name: Define archive name to download
+      shell: echo  "{{current_date.stdout}}_{{ansible_hostname}}_{{ansible_default_ipv4.address}}_cfg_backup.tar.gz"
+      register: archive_to_download 
+
+    - name: Download archive on schedule
+      fetch:
+        src: "{{backup_dir.stdout}}.tar.gz"
+        dest: "{{ dst_dir }}/{{ansible_hostname}}/{{archive_to_download.stdout}}"
+        flat: yes
+      when:
+        download_on_schedule is defined and download_on_schedule == "True"
+
+    - name: Download archive on demand
+      fetch:
+        src: "{{backup_dir.stdout}}.tar.gz"
+        dest: "{{archive_to_download.stdout}}"
+        flat: yes
+      when:
+        download_on_demand is defined and download_on_demand == "True"
+
+    - name: Remove archive
+      file: 
+        path: "{{backup_dir.stdout}}.tar.gz"
+        state: absent
+      tags: delete_local_backup 
+
+    - name: Remove backup dir
+      file: 
+        path: "{{backup_dir.stdout}}"
+        state: absent
+      tags: delete_local_backup 
