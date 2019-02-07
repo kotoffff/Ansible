@@ -1,0 +1,15 @@
+---
+#############################
+#var file for system_user_group_adding_changing.yml playbook
+# author: Sergey Kotov, kotoffff@gmail.com
+################################
+
+#UserID: test1
+#Uid: 1040
+#UserName: John Doe
+#sha512_hash: $6$_some_hash
+#md5_hash: $1$_some_hash
+#group: 63257 - primary groupname/gid for the user
+#GroupName: test27 - group name which should be created
+#GroupID: 63257 - gid for the created group
+#SshKey: "ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAQBjEKteVtKhMLRwC9X5K2zEmmnpSntX7RxtR2ey...  some_key_comment"

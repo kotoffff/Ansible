@@ -1,0 +1,391 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>&lt;pre&gt; &lt;strong&gt;  &#xd;
+This job is used for system user(s)/group(s) creation/modification/resetting.&#xd;
+&lt;/strong&gt; &lt;/pre&gt;</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <jenkins.plugins.jobicon.CustomIconProperty plugin="custom-job-icon@0.2">
+      <iconfile>6fc035477703f4d99be54427153acfa7e7235770.png</iconfile>
+    </jenkins.plugins.jobicon.CustomIconProperty>
+    <jenkins.model.BuildDiscarderProperty>
+      <strategy class="hudson.tasks.LogRotator">
+        <daysToKeep>365</daysToKeep>
+        <numToKeep>-1</numToKeep>
+        <artifactDaysToKeep>-1</artifactDaysToKeep>
+        <artifactNumToKeep>-1</artifactNumToKeep>
+      </strategy>
+    </jenkins.model.BuildDiscarderProperty>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>JobType</name>
+          <description>&lt;pre&gt;&lt;strong&gt;Please choose the appropriate type of job:
+ 1. Add_or_Change_User - create user id(s) if not exist or change password if exist. User id(s) will be reseted also.
+ 2. Add_Ssh_Key - add ssh-key to (homedir)+/.ssh/authorized_keys
+ 3. Reset_User - user id(s)  resetting (chage, pam_tally, pam_tally2). Password will not be changed in this case.&lt;/strong&gt;&lt;/pre&gt;</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>None</string>
+              <string>Add_or_Change_User</string>
+              <string>Add_Ssh_Key</string>
+              <string>Reset_User</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>UserID</name>
+          <description>&lt;pre&gt;&lt;strong&gt;Please insert user id.
+Example:
+some_user
+some_user1
+&lt;font color=&quot;red&quot;&gt;Required parameter&lt;/font&gt;
+&lt;/strong&gt;&lt;/pre&gt;</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>Password</name>
+          <description>&lt;pre&gt;&lt;strong&gt;Please insert user&apos;s password
+&lt;font color=&quot;red&quot;&gt;Required parameter if JobType is Add_or_Change_User &lt;/font&gt;
+&lt;/strong&gt;&lt;/pre&gt;</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>UserName</name>
+          <description>&lt;pre&gt;&lt;strong&gt;Please insert user&apos;s name.
+Example:
+Service account user for some purpose
+Joe Doe
+&lt;font color=&quot;green&quot;&gt;Optional parameter&lt;/font&gt;
+&lt;/strong&gt;&lt;/pre&gt;</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>SshKey</name>
+          <description>&lt;pre&gt;&lt;strong&gt;Please insert user&apos;s ssh key. 
+Example:
+ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAQBjEKteVtKhMLRwC9X5K2zEmmnpSntX7RxtR2eyu9AmXQOIwTn9NburFPm9Vs8CEmvc/2qvehCywlHh3FRWgRizBHPmj/ajWLcUBzMg/BwTrzVlG49F6IQTy3dGvnCOCX0WXNObaVQfgq6CVmGbc5I5IMQAqBiXsD6gMfmNIEBgroWh4KJTIpljjAisp5DAjtkp7qwjnYJGMpPE7TOORHYpBI4tuSUnBpw7Bx06+K3sY8tsOJqM6/FbCIPKQ1F/RamWUHB7yiLMTeOO4jQeLEtG2ZolVXYU4Fa1F3X+Qwao7AVQsOYcuPGB05AJLhVbontc6gGy7MNCZ7dzJ8ApLda7
+&lt;font color=&quot;green&quot;&gt;Optional parameter if JobType is Add_or_Change_User&lt;/font&gt;
+&lt;font color=&quot;red&quot;&gt;Required parameter if JobType is Add_Ssh_Key&lt;/font&gt;
+&lt;/strong&gt;&lt;/pre&gt;</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>Uid</name>
+          <description>&lt;pre&gt;&lt;strong&gt;Please insert user&apos;s uid. 
+Example:
+23177
+5200
+&lt;font color=&quot;green&quot;&gt;Optional parameter&lt;/font&gt;
+&lt;/strong&gt;&lt;/pre&gt;</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>UserGid</name>
+          <description>&lt;pre&gt;&lt;strong&gt;Please insert user&apos;s gid if user should be belonged to specific primary group. 
+Example:
+qwerty_group
+5100
+&lt;font color=&quot;green&quot;&gt;Optional parameter&lt;/font&gt;
+&lt;/strong&gt;&lt;/pre&gt;</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>GroupName</name>
+          <description>&lt;pre&gt;&lt;strong&gt;Please insert group name if you need to create/change group. 
+&lt;font color=&quot;green&quot;&gt;Optional parameter&lt;/font&gt;
+&lt;/strong&gt;&lt;/pre&gt;</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>GroupID</name>
+          <description>&lt;pre&gt;&lt;strong&gt;Please insert gid for the group. 
+&lt;font color=&quot;green&quot;&gt;Optional parameter&lt;/font&gt;
+&lt;/strong&gt;&lt;/pre&gt;</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>ServerName</name>
+          <description>&lt;strong&gt; Server name for single server &lt;/strong&gt;</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>IP</name>
+          <description>&lt;strong&gt; IP address for single server &lt;/strong&gt;</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>Port</name>
+          <description>&lt;strong&gt; Ssh port for single server &lt;/strong&gt;</description>
+          <defaultValue>22</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <com.cloudbees.plugins.credentials.CredentialsParameterDefinition plugin="credentials@2.1.18">
+          <name>Credentials</name>
+          <description></description>
+          <defaultValue></defaultValue>
+          <credentialType>com.cloudbees.jenkins.plugins.sshcredentials.impl.BasicSSHUserPrivateKey</credentialType>
+          <required>true</required>
+        </com.cloudbees.plugins.credentials.CredentialsParameterDefinition>
+        <hudson.model.PasswordParameterDefinition>
+          <name>Passphrase</name>
+          <description></description>
+          <defaultValue>{AQAAABAAAAAQsYPOysv+EwvJMfpc5EcJLGnCRG3pjrZSdMc2RpiM47Q=}</defaultValue>
+        </hudson.model.PasswordParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <assignedNode>Local-Agent</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>set +e
+set +x
+
+#check Jenkins job variables
+if [ &quot;${JobType}&quot; = &quot;None&quot; ]
+then
+  echo &quot;ERROR: No job type is provided&quot;
+  exit 1
+fi
+
+if [ -z  &quot;${UserID}&quot; ]
+then
+  echo &quot;ERROR: No user id(s) is(are) provided&quot;
+  exit 1
+fi
+
+if [ &quot;${JobType}&quot; = &quot;Add_or_Change_User&quot; ]
+then
+  if [ -z  &quot;${Password}&quot; ]
+  then
+    echo &quot;ERROR: No Password is provided&quot;
+    exit 1
+  fi
+fi
+
+if [ &quot;${JobType}&quot; = &quot;Add_Ssh_Key&quot; ]
+then
+  if [ -z  &quot;${SshKey}&quot; ]
+  then
+    echo &quot;ERROR: No ssh key is provided&quot;
+    exit 1
+  fi
+fi
+
+if [ ! -z  &quot;${GroupName}&quot; ]
+then
+  if [ -z  &quot;${GroupID}&quot; ]
+  then
+    echo &quot;ERROR: No GroupID is provided&quot;
+    exit 1
+  fi
+fi
+
+if [ ! -z  &quot;${GroupID}&quot; ]
+then
+  if [ -z  &quot;${GroupName}&quot; ]
+  then
+    echo &quot;ERROR: No GroupName is provided&quot;
+    exit 1
+  fi
+fi
+
+if [ -z &quot;${ServerName}&quot; ]
+then
+  echo &quot;ERROR: No server name is provided&quot;
+  exit 1
+fi
+
+echo &quot;Setting credentials&quot;
+eval `ssh-agent -s`
+expect &lt;&lt; EOF
+  set timeout 5
+  spawn ssh-add ${MYKEY}
+  expect {
+      &quot;Enter passphrase for &quot; {
+         send &quot;${Passphrase}\r&quot;
+         expect {
+           &quot;Identity added: &quot; {
+              exit 0
+            }
+            &quot;Bad passphrase&quot; {
+               exit 1
+            }
+            eof {
+               exit 1
+            }            
+            timeout {
+               exit 1
+            }
+         }
+       }
+       &quot;Identity added: &quot; {
+          exit 0
+       }
+       eof {
+          exit 1
+       }       
+       timeout {
+          exit 1
+       }
+   }
+EOF
+rc=$?
+if [ $rc -ne 0 ]
+then
+   echo
+   echo &quot;ERROR: Failed to set credentials&quot;
+   ssh-agent -k
+   exit 1
+fi
+
+#set ansible variables
+export ANSIBLE_FORCE_COLOR=true
+cp your_dir/system_user_group_adding_changing.yml .
+
+
+ANSIBLE_OPTS=&quot;-i myinventory.txt -u $MYNAME&quot;
+if [ &quot;$MYNAME&quot; != &quot;root&quot; ]
+then
+   export ANSIBLE_OPTS=&quot;$ANSIBLE_OPTS -b&quot;
+fi
+
+#inventory file creation
+if [ ! -z ${ServerName} ] 
+then
+  if [ -z ${IP} ]
+  then
+    echo &quot;ERROR: No IP for ${ServerName} is provided&quot;
+    exit 1
+  else
+    echo &quot;$(echo ${ServerName} | tr -d &apos; &apos;)  ansible_ssh_host=$(echo ${IP} | tr -d &apos; &apos;) ansible_port=$(echo ${Port} | tr -d &apos; &apos;)&quot; &gt;&gt; myinventory.txt
+  fi  
+fi
+
+
+#Variables creation part
+UserID=$(echo ${UserID} | tr -d &apos; &apos;)
+echo &quot;UserID: \&quot;${UserID}\&quot;&quot; &gt;&gt; user_group_list.yml
+
+
+if [ ! -z  &quot;${UserName}&quot; ]
+then
+  echo &quot;UserName: \&quot;${UserName}\&quot;&quot; &gt;&gt; user_group_list.yml
+fi
+
+if [ ! -z  &quot;${Uid}&quot; ]
+then
+  Uid=$(echo ${Uid} | tr -d &apos; &apos;)
+  echo &quot;Uid: \&quot;${Uid}\&quot;&quot; &gt;&gt; user_group_list.yml
+fi
+
+if [ ! -z  &quot;${UserGid}&quot; ]
+then
+  UserGid=$(echo ${UserGid} | tr -d &apos; &apos;)
+  echo &quot;group: \&quot;${UserGid}\&quot;&quot; &gt;&gt; user_group_list.yml
+fi
+
+if [ ! -z  &quot;${Password}&quot; ]
+then
+  Password=$(echo ${Password} | tr -d &apos; &apos;)
+  salt=$(pwgen -s 8 1)
+  sha512_hash=$(mkpasswd  -m sha-512 -S ${salt} ${Password})
+  md5_hash=$(mkpasswd  -m md5 -S ${salt} ${Password})
+  echo &quot;sha512_hash: \&quot;${sha512_hash}\&quot;&quot; &gt;&gt; user_group_list.yml
+  echo &quot;md5_hash: \&quot;${md5_hash}\&quot;&quot; &gt;&gt; user_group_list.yml
+fi
+
+if [ ! -z  &quot;${SshKey}&quot; ]
+then
+  echo &quot;SshKey: \&quot;${SshKey}\&quot;&quot; &gt;&gt; user_group_list.yml
+fi 
+
+if [ ! -z  &quot;${GroupName}&quot; ]
+then
+  GroupName=$(echo ${GroupName} | tr -d &apos; &apos;)
+  GroupID=$(echo ${GroupID} | tr -d &apos; &apos;)
+  echo &quot;GroupName: \&quot;${GroupName}\&quot;&quot; &gt;&gt; user_group_list.yml
+  echo &quot;GroupID: \&quot;${GroupID}\&quot;&quot; &gt;&gt; user_group_list.yml
+fi
+
+
+
+
+#ansible user management part
+if [ &quot;${JobType}&quot; = &quot;Add_or_Change_User&quot; ]
+then
+   ansible-playbook $ANSIBLE_OPTS system_user_group_adding_changing.yml
+elif [ &quot;${JobType}&quot; = &quot;Reset_User&quot; ]
+then
+   ansible-playbook $ANSIBLE_OPTS system_user_group_adding_changing.yml --tags &quot;reset_account&quot;
+elif [ &quot;${JobType}&quot; = &quot;Add_Ssh_Key&quot; ]
+then
+   ansible-playbook $ANSIBLE_OPTS system_user_group_adding_changing.yml --tags &quot;ssh_key&quot;
+fi
+
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>*.txt, *.yml</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+    </hudson.tasks.ArtifactArchiver>
+    <hudson.plugins.descriptionsetter.DescriptionSetterPublisher plugin="description-setter@1.10">
+      <regexp></regexp>
+      <regexpForFailed></regexpForFailed>
+      <description>Started ${JobType} Job  by ${BUILD_USER} for ${UserID} user on ${ServerName}</description>
+      <setForMatrix>false</setForMatrix>
+    </hudson.plugins.descriptionsetter.DescriptionSetterPublisher>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.37">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+    <com.michelin.cio.hudson.plugins.maskpasswords.MaskPasswordsBuildWrapper>
+      <varMaskRegexes>
+        <varMaskRegex regex="Passphrase"/>
+      </varMaskRegexes>
+    </com.michelin.cio.hudson.plugins.maskpasswords.MaskPasswordsBuildWrapper>
+    <org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper plugin="credentials-binding@1.17">
+      <bindings>
+        <org.jenkinsci.plugins.credentialsbinding.impl.SSHUserPrivateKeyBinding>
+          <credentialsId>${Credentials}</credentialsId>
+          <keyFileVariable>MYKEY</keyFileVariable>
+          <usernameVariable>MYNAME</usernameVariable>
+          <passphraseVariable></passphraseVariable>
+        </org.jenkinsci.plugins.credentialsbinding.impl.SSHUserPrivateKeyBinding>
+      </bindings>
+    </org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper>
+    <hudson.plugins.timestamper.TimestamperBuildWrapper plugin="timestamper@1.8.10"/>
+    <hudson.plugins.ansicolor.AnsiColorBuildWrapper plugin="ansicolor@0.5.3">
+      <colorMapName>xterm</colorMapName>
+    </hudson.plugins.ansicolor.AnsiColorBuildWrapper>
+    <org.jenkinsci.plugins.builduser.BuildUser plugin="build-user-vars-plugin@1.5"/>
+  </buildWrappers>
+</project>

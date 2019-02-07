@@ -1,0 +1,212 @@
+---
+########################################################
+# playbook for:
+# 1. User creation/resetting
+# 2. Group creation
+# 
+#
+# Vars:
+# You can find vars list in user_group_list.yml file
+#
+# Tags:
+# reset_account - if you want to reset account (chage, pam_tally(2)) only
+# ssh_key - if you want to add ssh-key only
+#
+# author: Sergey Kotov, kotoffff@gmail.com
+#######################################################
+
+- hosts: all
+  become: True
+#  remote_user: some_user_with_root_credentials
+  gather_facts: False
+
+  vars_files:
+    - user_group_list.yml
+
+  tasks:
+
+      - name: Get facts
+        setup:
+          gather_subset: "!all"
+
+#group creation part
+      - name: Create group
+        group:
+          name: "{{GroupName}}"
+          gid: "{{GroupID | default(omit)}}"
+        when:    
+          - GroupName is defined
+
+#user creation/changing part
+#userid checking part
+      - name: Check if local account exists
+        shell: "grep  ^{{UserID}}: /etc/passwd"
+        register: local_user_existing
+        ignore_errors: yes
+
+#      - name: print if local account exists
+#        debug: 
+#           msg: "{{ local_user_existing.stdout }}"
+
+      - name: Check if account exists
+        shell: id {{UserID}}
+        register: user_existing
+        ignore_errors: yes
+
+#      - name: print if account exists
+#        debug: 
+#           msg: "{{ user_existing.stdout }}"
+
+      - name: Check sha512/md5
+        shell: grep sha512 /etc/pam.d/* | grep -v '#'| wc -l
+        register: sha512
+
+#change password only if local user already exists
+
+      - name: Change password to sha512 hash
+        shell: usermod -p '{{sha512_hash}}' {{UserID}}
+        when:
+          - local_user_existing.stdout !=''
+          - sha512.stdout > "0"         
+
+      - name: Change password to md5 hash (old OS)
+        shell: usermod -p '{{md5_hash}}' {{UserID}}
+        when:
+          - local_user_existing.stdout !=''
+          - sha512.stdout == "0"         
+
+#create user if doesn't exist
+      - name: Create local user with sha512 hash (gid is defined)
+        user:
+          name: "{{UserID}}"
+          group: "{{group}}"
+          password: "{{sha512_hash}}"
+          uid: "{{Uid | default(omit)}}"
+          comment: "{{UserName if UserName is defined else ''}}"
+        when:
+          - local_user_existing.stdout ==''
+          - user_existing.stdout ==''
+          - sha512.stdout > "0"         
+          - group is defined
+
+      - name: Create local user with md5 hash (gid is defined)
+        user:
+          name: "{{UserID}}"
+          group: "{{group}}"
+          password: "{{md5_hash}}"
+          uid: "{{Uid | default(omit)}}"
+          comment: "{{UserName if UserName is defined else ''}}"
+        when:
+          - local_user_existing.stdout ==''
+          - user_existing.stdout ==''
+          - sha512.stdout == "0"         
+          - group is defined
+
+      - name: Create local user with sha512 hash (gid is undefined)
+        user:
+          name: "{{UserID}}"
+          password: "{{sha512_hash}}"
+          uid: "{{Uid | default(omit)}}"
+          comment: "{{UserName if UserName is defined else ''}}"
+        when:
+          - local_user_existing.stdout ==''
+          - user_existing.stdout ==''
+          - sha512.stdout > "0"         
+          - group is undefined
+
+      - name: Create local user with md5 hash (gid is undefined)
+        user:
+          name: "{{UserID}}"
+          password: "{{md5_hash}}"
+          uid: "{{Uid | default(omit)}}"
+          comment: "{{UserName if UserName is defined else ''}}"
+        when:
+          - local_user_existing.stdout ==''
+          - user_existing.stdout ==''
+          - sha512.stdout == "0"         
+          - group is undefined
+
+      - name: Set authorized key 
+        authorized_key:
+          user: "{{UserID}}"
+          state: present
+          key: "{{SshKey}}"
+        when:
+          - SshKey is defined
+        tags: ssh_key       
+
+#print message if user isn't local (NIS/SAMBA, etc)
+      - name: Check if account exists and it isn't local
+        shell: echo "{{UserID}} isn't local (SAMBA,NIS, etc). Ansible can't add/change it!"
+        register: not_local_user_existing
+        when:
+          - local_user_existing.stdout ==''
+          - user_existing.stdout !=''
+
+      - name: Print if account exists and it isn't local
+        debug: 
+           msg: "{{ not_local_user_existing.stdout }}"
+        when:
+          - local_user_existing.stdout ==''
+          - user_existing.stdout !=''
+
+#password resetting part
+#check again if local account exists or not
+      - name: Check if local account exists
+        shell: "grep  ^{{UserID}}: /etc/passwd"
+        register: local_user_existing
+        ignore_errors: yes
+        tags: reset_account
+#chage part
+      - name: Define current date in task (YYYY-MM-DD)
+        shell: echo $(date +%Y-%m-%d)
+        register: current_data
+        when: 
+          - local_user_existing.stdout !=''
+        tags: reset_account
+
+      - name: Check if /usr/bin/chage exists
+        stat: path=/usr/bin/chage
+        register: chage_check
+        when: 
+          - local_user_existing.stdout !=''
+        tags: reset_account
+
+      - name: Set today as the date when the password was last changed
+        shell: /usr/bin/chage -d "{{current_data.stdout}}" "{{ UserID }}"
+        ignore_errors: yes
+        when: 
+          - local_user_existing.stdout !=''
+          - chage_check.stat.exists == True
+        tags: reset_account
+
+#pam_tally(2) part
+      - name: Check if /sbin/pam_tally exists
+        stat: path=/sbin/pam_tally
+        register: pam_tally
+        when: 
+          - local_user_existing.stdout !=''
+        tags: reset_account
+
+      - name: Check if /sbin/pam_tally2 exists
+        stat: path=/sbin/pam_tally2
+        register: pam_tally2
+        when: 
+          - local_user_existing.stdout !=''
+        tags: reset_account
+
+      - name: Reset account with /sbin/pam_tally
+        shell: /sbin/pam_tally --user "{{ UserID }}" --reset
+        ignore_errors: yes
+        when: 
+          - local_user_existing.stdout !=''
+          - pam_tally.stat.exists == True
+        tags: reset_account
+
+      - name: Reset account with /sbin/pam_tally2
+        shell: /sbin/pam_tally2 --user "{{ UserID }}" --reset
+        ignore_errors: yes
+        when: 
+          - local_user_existing.stdout !=''
+          - pam_tally2.stat.exists == True
+        tags: reset_account
