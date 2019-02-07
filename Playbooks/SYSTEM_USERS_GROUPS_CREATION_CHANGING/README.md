@@ -17,8 +17,8 @@ Description
 
 Requirements
 ------------
-Tested for Ansible 2.4
-Tested for SLES 10/11/12, CentOS 5/6/7, RHEL 5/6/7, Ubuntu 14/16/17/18
+* Tested for Ansible 2.4
+* Tested for SLES 10/11/12, CentOS 5/6/7, RHEL 5/6/7, Ubuntu 14/16/17/18
 
 
 Vars
