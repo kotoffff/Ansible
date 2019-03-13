@@ -8,6 +8,7 @@ Playbooks
 
   * [ANSIBLE_CFG_BACKUP](https://github.com/kotoffff/Ansible/tree/master/Playbooks/ANSIBLE_CFG_BACKUP) => playbook for downloading config files from servers and save it in local dir
   * [SYSTEM_USERS_GROUPS_CREATION_CHANGING](https://github.com/kotoffff/Ansible/tree/master/Playbooks/SYSTEM_USERS_GROUPS_CREATION_CHANGING) => playbook for local users and groups creation and changing
+  * [SSH_KEYS_AUDIT](https://github.com/kotoffff/Ansible/tree/master/Playbooks/SSH_KEYS_AUDIT) => playbook for ssh keys audit
 
 Requirements
 ------------

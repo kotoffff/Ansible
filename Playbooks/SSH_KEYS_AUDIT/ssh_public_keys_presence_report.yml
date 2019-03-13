@@ -1,0 +1,201 @@
+---
+############################################################################################################################################################
+#Playbook for ~/.ssh/authorized_keys file checking for all user accounts and report file with info about existing ssh keys, user info, latest access date etc creation
+############################################################################################################################################################
+- hosts: all
+  become: True
+#  remote_user: root
+  gather_facts: False
+  tasks:
+
+    - name: Get facts
+      setup:
+        gather_subset: "network"
+
+    - name: Define current date in task (YYYY-MM-DD_HH-MM)
+      shell: echo $(date +%Y-%m-%d_%H-%M-%S)
+      register: current_date
+
+#/home/%username%/part
+    - name: Register /home/%username% var
+      shell: find /home/*/.ssh -name authorized_keys | awk '{ gsub ( "/", " "); print $2 }'
+      args:
+        executable: /bin/bash
+      register: users_with_authorized_keys_file
+
+    - name: Create tmp dirs
+      file: 
+        path: "/tmp/{{current_date.stdout}}_{{item}}"
+        state: directory
+        mode: 0700
+      with_items:
+         - "{{users_with_authorized_keys_file.stdout_lines}}"
+
+    - name: Split /home/%username%/.ssh/authorized_keys  
+      shell: split -l 1 /home/{{item}}/.ssh/authorized_keys /tmp/{{current_date.stdout}}_{{item}}/public_key-
+      args:
+        executable: /bin/bash
+      with_items:
+         - "{{users_with_authorized_keys_file.stdout_lines}}"
+      ignore_errors: yes
+
+#root user part
+    - name: Check if /root/.ssh/authorized_keys file exists
+      stat: 
+        path: /root/.ssh/authorized_keys
+      register: root_with_authorized_keys_file
+
+    - name: Create tmp dir for root user
+      file: 
+        path: "/tmp/{{current_date.stdout}}_root"
+        state: directory
+        mode: 0700
+      when: root_with_authorized_keys_file.stat.exists == True
+
+    - name: Split /root/.ssh/authorized_keys  
+      shell: split -l 1 /root/.ssh/authorized_keys /tmp/{{current_date.stdout}}_root/public_key-
+      args:
+        executable: /bin/bash
+      when: root_with_authorized_keys_file.stat.exists == True
+      ignore_errors: yes
+
+#samba users
+    - name: Register samba_home_dir
+      shell: a=$(ps aux | grep smb | grep -v grep);if [ ! -z "$a" ];then grep '^\[homes\]' -A5  /etc/samba/smb.conf | grep 'path' | awk '{print $3}';fi;exit 0
+      args:
+        executable: /bin/bash
+      register: samba_home_dir
+
+    - name: Register samba_home_dir/%username% var
+      shell: find {{samba_home_dir.stdout}}/*/.ssh -name authorized_keys | awk '{ gsub ( "/", " "); print }' | rev | awk '{$1=$2="";print}' | rev |awk '{print $NF}'
+      args:
+        executable: /bin/bash
+      register: samba_users_with_authorized_keys_file
+      when: samba_home_dir.stdout != "" and samba_home_dir.stdout != "/home"
+
+    - name: Create tmp dirs
+      file: 
+        path: "/tmp/{{current_date.stdout}}_{{item}}"
+        state: directory
+        mode: 0700
+      with_items:
+         - "{{samba_users_with_authorized_keys_file.stdout_lines}}"
+      when: samba_home_dir.stdout != "" and samba_home_dir.stdout != "/home"
+
+    - name: Split /home/%username%/.ssh/authorized_keys  
+      shell: split -l 1 {{samba_home_dir.stdout}}/{{item}}/.ssh/authorized_keys /tmp/{{current_date.stdout}}_{{item}}/public_key-
+      args:
+        executable: /bin/bash
+      with_items:
+         - "{{samba_users_with_authorized_keys_file.stdout_lines}}"
+      when: samba_home_dir.stdout != "" and samba_home_dir.stdout != "/home"
+      ignore_errors: yes
+
+
+#full users list creation
+    - name: Register /home/%username% var + root
+      shell: find /tmp/ -type d -name '{{current_date.stdout}}_*' | awk '{ gsub ( "{{current_date.stdout}}_", " "); print $NF }'
+      args:
+        executable: /bin/bash
+      register: users_with_authorized_keys_file
+
+#account info checking
+    - name: Account info checking
+      script: scripts/check_user_information.sh {{item}} /tmp/{{current_date.stdout}}_{{item}}
+      with_items:
+         - "{{users_with_authorized_keys_file.stdout_lines}}"
+
+# parsing part
+    - name: Create tmp file with info about public keys (exclude RHEL6)
+      shell: for i in $(ls /tmp/{{current_date.stdout}}_{{item}}/ | grep public_key-);do ssh-keygen -l -f /tmp/{{current_date.stdout}}_{{item}}/$i >> /tmp/{{current_date.stdout}}_{{item}}/key_info.tmp;done
+      args:
+        executable: /bin/bash
+      with_items:
+         - "{{users_with_authorized_keys_file.stdout_lines}}"  
+      when: not (ansible_os_family == 'RedHat' and ansible_distribution_major_version < '7')
+      ignore_errors: yes
+
+    - name: Create tmp file with info about public keys  (RHEL6)
+      shell: for i in $(ls /tmp/{{current_date.stdout}}_{{item}}/ | grep public_key-);do ssh-keygen -l -f /tmp/{{current_date.stdout}}_{{item}}/$i | awk '{print $1,$2,$4}' >> /tmp/{{current_date.stdout}}_{{item}}/key_info.tmp;done
+      args:
+        executable: /bin/bash
+      with_items:
+         - "{{users_with_authorized_keys_file.stdout_lines}}"
+      when: (ansible_os_family == 'RedHat' and ansible_distribution_major_version < '7')
+      ignore_errors: yes
+
+    - name: Create file with info about public keys(<host>,<default_ipv4_ip>,<user>,<local_user>,<locked_local_user>,<disabled_local_user>,<Samba(AD)_user>,<NIS user>,<public key fingerprint>,<public key optional info>,<last login date time>) (Ubuntu)
+      script: scripts/create_summary_file_ubuntu.sh {{item}} /tmp/{{current_date.stdout}}_{{item}} {{ansible_hostname}} {{ansible_default_ipv4.address}}
+      args:
+        executable: /bin/bash
+      with_items:
+         - "{{users_with_authorized_keys_file.stdout_lines}}"
+      when: ansible_os_family == 'Debian'   
+
+    - name: Create file with info about public keys(<host>,<default_ipv4_ip>,<user>,<local_user>,<locked_local_user>,<disabled_local_user>,<Samba(AD)_user>,<NIS user>,<public key fingerprint>,<public key optional info>,<last login date time>) (RedHat 6)
+      script: scripts/create_summary_file_RHEL6.sh {{item}} /tmp/{{current_date.stdout}}_{{item}} {{ansible_hostname}} {{ansible_default_ipv4.address}}
+      args:
+        executable: /bin/bash
+      with_items:
+         - "{{users_with_authorized_keys_file.stdout_lines}}"
+      when: ansible_os_family == 'RedHat' and ansible_distribution_major_version < '7' 
+
+    - name: Create file with info about public keys(<host>,<default_ipv4_ip>,<user>,<local_user>,<locked_local_user>,<disabled_local_user>,<Samba(AD)_user>,<NIS user>,<public key fingerprint>,<public key optional info>,<last login date time>) (RedHat 7)
+      script: scripts/create_summary_file_RHEL7.sh {{item}} /tmp/{{current_date.stdout}}_{{item}} {{ansible_hostname}} {{ansible_default_ipv4.address}}
+      args:
+        executable: /bin/bash
+      with_items:
+         - "{{users_with_authorized_keys_file.stdout_lines}}"
+      when: ansible_os_family == 'RedHat' and ansible_distribution_major_version > '6' 
+
+    - name: Create file with info about public keys(<host>,<default_ipv4_ip>,<user>,<local_user>,<locked_local_user>,<disabled_local_user>,<Samba(AD)_user>,<NIS user>,<public key fingerprint>,<public key optional info>,<last login date time>) (SLES 11)
+      script: scripts/create_summary_file_SLES11.sh {{item}} /tmp/{{current_date.stdout}}_{{item}} {{ansible_hostname}} {{ansible_default_ipv4.address}}
+      args:
+        executable: /bin/bash
+      with_items:
+         - "{{users_with_authorized_keys_file.stdout_lines}}"
+      when: ansible_os_family == 'Suse' and ansible_distribution_major_version < '12'
+
+    - name: Create file with info about public keys(<host>,<default_ipv4_ip>,<user>,<local_user>,<locked_local_user>,<disabled_local_user>,<Samba(AD)_user>,<NIS user>,<public key fingerprint>,<public key optional info>,<last login date time>) (SLES 12)
+      script: scripts/create_summary_file_SLES12.sh {{item}} /tmp/{{current_date.stdout}}_{{item}} {{ansible_hostname}} {{ansible_default_ipv4.address}}
+      args:
+        executable: /bin/bash
+      with_items:
+         - "{{users_with_authorized_keys_file.stdout_lines}}"
+      when: ansible_os_family == 'Suse' and ansible_distribution_major_version > '11'
+
+#finish part
+    - name: Create summary file 
+      shell: if [ -f /tmp/{{current_date.stdout}}_{{item}}/key_info_with_access_date.txt ];then cat /tmp/{{current_date.stdout}}_{{item}}/key_info_with_access_date.txt >> /tmp/{{current_date.stdout}}_ssh_keys_info.txt;fi
+      args:
+        executable: /bin/bash
+      with_items:
+         - "{{users_with_authorized_keys_file.stdout_lines}}"
+
+    - name: Register ssh_keys_info variable
+      shell: cat /tmp/{{current_date.stdout}}_ssh_keys_info.txt
+      args:
+        executable: /bin/bash
+      register: ssh_keys_info
+
+    - name: Add headline to summary file
+      local_action: shell echo "host,default_ipv4_ip,user,local_user,locked_local_user,disabled_local_user,Samba(AD)_user,NIS user,public key fingerprint,public key optional info,last login date time" > summary_ssh_keys_info.csv
+      run_once: true
+      become: no
+
+    - name: Add info to summary file
+      local_action: shell echo "{{ssh_keys_info.stdout}}" >> summary_ssh_keys_info.csv
+      become: no
+
+#remove tmp files
+    - name: Remove temp dir
+      file: 
+        path: /tmp/{{current_date.stdout}}_{{item}}
+        state: absent
+      with_items:
+           - "{{users_with_authorized_keys_file.stdout_lines}}"
+
+    - name: Remove temp summary file
+      file: 
+        path: /tmp/{{current_date.stdout}}_ssh_keys_info.txt
+        state: absent
